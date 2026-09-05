@@ -14,6 +14,7 @@ metadata:
       {{ toYaml . | nindent 4 }}
     {{- end }}
   {{- end }}
+    app.kubernetes.io/component: nexus
 spec:
   clusterIP: None
   publishNotReadyAddresses: {{ .Values.service.headless.publishNotReadyAddresses }}
@@ -24,6 +25,7 @@ spec:
         {{ toYaml . | nindent 4 }}
       {{- end }}
     {{- end }}
+    app.kubernetes.io/component: nexus
   ports:
     - name: nexus-ui
       port: {{ .Values.statefulset.container.containerPort }}

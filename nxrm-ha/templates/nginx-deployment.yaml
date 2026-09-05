@@ -1,0 +1,164 @@
+{{- if .Values.nginx.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "nexus.fullname" . }}-nginx
+  namespace: {{ default .Release.Namespace .Values.namespaces.nexusNs.name | quote }}
+  labels:
+{{ include "nexus.labels" . | nindent 4 }}
+  {{- if .Values.nexus.extraLabels }}
+    {{- with .Values.nexus.extraLabels }}
+      {{ toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+    app.kubernetes.io/component: nginx
+{{- if .Values.nginx.annotations }}
+  annotations:
+    {{ toYaml .Values.nginx.annotations | nindent 4 }}
+{{- end }}
+spec:
+  replicas: {{ .Values.nginx.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "nexus.selectorLabels" . | nindent 6 }}
+      {{- if .Values.nexus.extraSelectorLabels }}
+        {{- with .Values.nexus.extraSelectorLabels }}
+          {{ toYaml . | nindent 6 }}
+        {{- end }}
+      {{- end }}
+      app.kubernetes.io/component: nginx
+  template:
+    metadata:
+      annotations:
+        checksum/configmap: {{ include (print .Template.BasePath "/nginx-configmap.yaml") $ | sha256sum }}
+        {{- if .Values.nginx.podAnnotations }}
+          {{ toYaml .Values.nginx.podAnnotations | nindent 8}}
+        {{- end }}
+      labels:
+        {{- include "nexus.selectorLabels" . | nindent 8 }}
+        {{- if .Values.nexus.extraSelectorLabels }}
+          {{- with .Values.nexus.extraSelectorLabels }}
+            {{ toYaml . | nindent 8 }}
+          {{- end }}
+        {{- end }}
+        app.kubernetes.io/component: nginx
+    spec:
+      {{- if .Values.serviceAccount.enabled }}
+      serviceAccountName: {{ include "nexus.serviceAccountName" . }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.nginx.container.terminationGracePeriod }}
+      {{- if .Values.nginx.initContainers }}
+      initContainers:
+        {{- if .Values.nginx.initContainers }}
+        {{ toYaml .Values.nginx.initContainers | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      {{- if .Values.nginx.nodeSelector }}
+      nodeSelector:
+        {{ toYaml .Values.nginx.nodeSelector | nindent 8 }}
+      {{- end }}
+      {{- if .Values.nginx.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{ toYaml .Values.nginx.topologySpreadConstraints | nindent 8 }}
+      {{- end }}
+      {{- if .Values.nginx.hostAliases }}
+      hostAliases:
+        {{ toYaml .Values.nginx.hostAliases | nindent 8 }}
+      {{- end }}
+      {{- if and .Values.nginx.imagePullSecrets.enabled .Values.nginx.imagePullSecrets.name }}
+      imagePullSecrets:
+        - name: {{ .Values.nginx.imagePullSecrets.name }}
+      {{- end }}
+      {{- if .Values.nginx.podSecurityContext }}
+      securityContext:
+        {{- toYaml .Values.nginx.podSecurityContext | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: nginx
+          image: {{ .Values.nginx.container.image.repository }}:{{ .Values.nginx.container.image.tag }}
+          imagePullPolicy: {{ .Values.nginx.container.pullPolicy }}
+          securityContext:
+            {{ toYaml .Values.nginx.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.nginx.container.containerPorts.http }}
+            {{- if .Values.nginx.tls.enabled }}
+            - name: https
+              containerPort: {{ .Values.nginx.container.containerPorts.https }}
+            {{- end }}
+          resources:
+            {{ toYaml .Values.nginx.container.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              {{- if .Values.nginx.tls.enabled }}
+              scheme: HTTPS
+              port: {{ .Values.nginx.container.containerPorts.https }}
+              {{- else }}
+              port: {{ .Values.nginx.container.containerPorts.http }}
+              {{- end }}
+              path: {{ .Values.nginx.startupProbe.path }}
+            initialDelaySeconds: {{ .Values.nginx.startupProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.nginx.startupProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.nginx.startupProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.nginx.startupProbe.failureThreshold }}
+          livenessProbe:
+            httpGet:
+              {{- if .Values.nginx.tls.enabled }}
+              scheme: HTTPS
+              port: {{ .Values.nginx.container.containerPorts.https }}
+              {{- else }}
+              port: {{ .Values.nginx.container.containerPorts.http }}
+              {{- end }}
+              path: {{ .Values.nginx.livenessProbe.path }}
+            initialDelaySeconds: {{ .Values.nginx.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.nginx.livenessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.nginx.livenessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.nginx.livenessProbe.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              {{- if .Values.nginx.tls.enabled }}
+              scheme: HTTPS
+              port: {{ .Values.nginx.container.containerPorts.https }}
+              {{- else }}
+              port: {{ .Values.nginx.container.containerPorts.http }}
+              {{- end }}
+              path: {{ .Values.nginx.readinessProbe.path }}
+            initialDelaySeconds: {{ .Values.nginx.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.nginx.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.nginx.readinessProbe.timeoutSeconds }}
+            failureThreshold: {{ .Values.nginx.readinessProbe.failureThreshold }}
+          volumeMounts:
+            - name: configs
+              mountPath: /etc/nginx/conf.d
+            {{- if .Values.nginx.tls.enabled }}
+            - name: certs
+              mountPath: /etc/nginx/cert
+            {{- end }}
+            - name: empty-dir
+              subPath: run
+              mountPath: /run
+            - name: empty-dir
+              subPath: cache
+              mountPath: /var/cache/nginx
+            {{- if .Values.nginx.additionalVolumeMounts}}
+              {{ toYaml .Values.nginx.additionalVolumeMounts | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: empty-dir
+          emptyDir: {}
+        - name: configs
+          configMap:
+            name: {{ template "nexus.fullname" . }}-nginx-configs
+        {{- if .Values.nginx.tls.enabled }}
+        - name: certs
+          secret:
+            secretName: {{ .Values.nginx.tls.secretName }}
+        {{- end }}
+        {{- if .Values.nginx.additionalVolumes }}
+          {{ toYaml .Values.nginx.additionalVolumes | nindent 8 }}
+        {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+        {{ toYaml . | nindent 8 }}
+    {{- end }}
+{{- end }}

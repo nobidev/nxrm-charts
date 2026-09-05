@@ -1,0 +1,82 @@
+{{- if .Values.nginx.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "nexus.fullname" . }}-nginx-configs
+  namespace: {{ default .Release.Namespace .Values.namespaces.nexusNs.name | quote }}
+  labels:
+{{ include "nexus.labels" . | nindent 4 }}
+  {{- if .Values.nexus.extraLabels }}
+    {{- with .Values.nexus.extraLabels }}
+      {{ toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+    app.kubernetes.io/component: nginx
+data:
+  default.conf: |
+    resolver {{ .Values.nginx.dnsResolver }} valid=5s ipv6=off;
+    map $http_x_forwarded_proto $x_forwarded_proto {
+      default $http_x_forwarded_proto;
+      ""      {{ ternary "https" "http" .Values.nginx.tls.enabled }};
+    }
+    upstream nexus {
+      zone upstream_nexus 64k;
+      server {{ template "nexus.fullname" . }}-hl.{{ default .Release.Namespace .Values.namespaces.nexusNs.name }}.svc.cluster.local:{{ .Values.statefulset.container.containerPort }} resolve;
+    }
+    server {
+      {{- if .Values.nginx.tls.enabled }}
+      listen {{ .Values.nginx.container.containerPorts.https }} ssl;
+      ssl_certificate /etc/nginx/cert/tls.crt;
+      ssl_certificate_key /etc/nginx/cert/tls.key;
+      ssl_protocols TLSv1.2 TLSv1.3;
+      {{- if .Values.nginx.strong_ssl_ciphers }}
+      ssl_ciphers ECDHE+AESGCM:DHE+AESGCM:ECDHE+RSA+SHA256:DHE+RSA+SHA256:!AES128;
+      {{ else }}
+      ssl_ciphers '!aNULL:kECDH+AESGCM:ECDH+AESGCM:RSA+AESGCM:kECDH+AES:ECDH+AES:RSA+AES:';
+      {{- end }}
+      ssl_prefer_server_ciphers on;
+      ssl_session_cache shared:SSL:10m;
+      {{- else }}
+      listen {{ .Values.nginx.container.containerPorts.http }};
+      {{- end }}
+      server_tokens off;
+      client_max_body_size 0;
+      location / {
+        proxy_pass http://nexus;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $x_forwarded_proto;
+        proxy_buffering off;
+        proxy_request_buffering off;
+      }
+
+      {{- if .Values.nginx.extraConfig }}
+      {{- "\n" }}
+      {{- tpl .Values.nginx.extraConfig . | nindent 6 }}
+      {{- end }}
+
+      {{- if and (not .Values.nginx.tls.enabled) .Values.nginx.extraHttpConfig }}
+      {{- "\n" }}
+      {{- tpl .Values.nginx.extraHttpConfig . | nindent 6 }}
+      {{- end }}
+    }
+    {{- if .Values.nginx.tls.enabled }}
+    server {
+      listen {{ .Values.nginx.container.containerPorts.http }};
+      location / {
+        return 301 https://$host$request_uri;
+      }
+
+      {{- if .Values.nginx.extraHttpConfig }}
+      {{- "\n" }}
+      {{- tpl .Values.nginx.extraHttpConfig . | nindent 6 }}
+      {{- end }}
+    }
+    {{- end }}
+  {{- with .Values.nginx.extraConfigs }}
+    {{- range $k, $_ := . }}
+  {{ $k }}: {{ toYaml (tpl . $) | nindent 2 | trim }}
+    {{- end }}
+  {{- end }}
+{{- end }}

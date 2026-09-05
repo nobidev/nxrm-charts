@@ -450,6 +450,65 @@ pvc:
     enabled: false
   existingClaim: null
 
+nginx:
+  enabled: false
+  dnsResolver: kube-dns.kube-system.svc.cluster.local
+  extraConfig: ''
+  extraHttpConfig: ''
+  extraConfigs: {}
+  replicaCount: 1
+  tls:
+    enabled: false
+    secretName: ''
+  annotations: {}
+  podAnnotations: {}
+  container:
+    image:
+      repository: nginx
+      tag: latest
+    containerPorts:
+      http: 8080
+      https: 8443
+    terminationGracePeriod: 120
+    pullPolicy: IfNotPresent
+    resources: {}
+  imagePullSecrets:
+    enabled: false
+    name: ""
+  podSecurityContext:
+    fsGroupChangePolicy: "OnRootMismatch"
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    seccompProfile:
+      type: RuntimeDefault
+    capabilities:
+      drop:
+        - ALL
+  startupProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 10
+    timeoutSeconds: 1
+    failureThreshold: 180
+    path: /
+  livenessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 30
+    timeoutSeconds: 1
+    failureThreshold: 6
+    path: /
+  readinessProbe:
+    initialDelaySeconds: 0
+    periodSeconds: 30
+    timeoutSeconds: 1
+    failureThreshold: 6
+    path: /
+  additionalVolumeMounts: []
+  additionalVolumes: []
+
 service: # Nexus Repo NodePort Service
   annotations: {}
   nexus:
@@ -461,6 +520,18 @@ service: # Nexus Repo NodePort Service
   headless:
     annotations: {}
     publishNotReadyAddresses: true # We want all pods in the StatefulSet to have their addresses published even before they're ready.
+  nginx:
+    enabled: false
+    type: LoadBalancer
+    protocols:
+      http: TCP
+      https: TCP
+    ports:
+      http: 80
+      https: 443
+    targetPorts:
+      http: 8080
+      https: 8443
 externalsecrets:
   enabled: false
   secretstore:
