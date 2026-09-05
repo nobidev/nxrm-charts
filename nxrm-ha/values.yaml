@@ -680,6 +680,12 @@ nexus:
   #     secretName: registry-secret
   #     targetPort: 8081
   #     annotations: {}
+  encryption:
+    enabled: false
+    active: default
+    keys:
+      default:
+        key: ''
 
 # Enable configmap and add arbitrary data in configmap
 config:

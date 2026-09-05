@@ -1,4 +1,4 @@
-{{- if .Values.nexus.properties.override -}}
+{{- if or .Values.nexus.encryption.enabled .Values.nexus.properties.override -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -12,6 +12,9 @@ metadata:
     {{- end }}
 data:
   nexus.properties: |
+    {{- if .Values.nexus.encryption.enabled }}
+    nexus.secrets.file=/var/nexus-encryption/encryption.json
+    {{- end }}
     {{- range $k, $v := .Values.nexus.properties.data }}
     {{ $k }}={{ $v }}
     {{- end }}

@@ -40,7 +40,7 @@ spec:
   template:
     metadata:
       annotations:
-        {{- if .Values.nexus.properties.override }}
+        {{- if or .Values.nexus.encryption.enabled .Values.nexus.properties.override }}
         checksum/configmap-properties: {{ include (print .Template.BasePath "/configmap-properties.yaml") $ | sha256sum }}
         {{- end }}
         {{- if .Values.statefulset.podAnnotations }}
@@ -269,10 +269,14 @@ spec:
             - name: {{ template "nexus.name" . }}-conf
               mountPath: {{ .Values.config.mountPath }}
             {{- end }}
-            {{- if .Values.nexus.properties.override }}
+            {{- if or .Values.nexus.encryption.enabled .Values.nexus.properties.override }}
             - mountPath: /nexus-data/etc/nexus.properties
               name: {{ template "nexus.name" . }}-properties
               subPath: nexus.properties
+            {{- end }}
+            {{- if .Values.nexus.encryption.enabled }}
+            - name: encryption
+              mountPath: /var/nexus-encryption
             {{- end }}
             {{- if .Values.statefulset.additionalVolumeMounts}}
               {{ toYaml .Values.statefulset.additionalVolumeMounts | nindent 12 }}
@@ -370,13 +374,18 @@ spec:
           configMap:
             name: {{ template "nexus.name" . }}-conf
       {{- end }}
-      {{- if .Values.nexus.properties.override }}
+      {{- if or .Values.nexus.encryption.enabled .Values.nexus.properties.override }}
         - name: {{ template "nexus.name" . }}-properties
           configMap:
             name: {{ template "nexus.name" . }}-properties
             items:
             - key: nexus.properties
               path: nexus.properties
+      {{- end }}
+      {{- if .Values.nexus.encryption.enabled }}
+        - name: encryption
+          secret:
+            secretName: {{ template "nexus.fullname" . }}-encryption
       {{- end }}
       {{- if .Values.statefulset.additionalVolumes }}
         {{ toYaml .Values.statefulset.additionalVolumes | nindent 8 }}
