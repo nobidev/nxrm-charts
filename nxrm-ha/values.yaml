@@ -1,5 +1,6 @@
 # Declare variables to be passed into your templates.
 namespaces:
+  enabled: false
   nexusNs:
     enabled: true
     name: "nexusrepo"

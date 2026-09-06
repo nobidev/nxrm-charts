@@ -1,3 +1,4 @@
+{{- if .Values.namespaces.enabled }}
 {{- if .Values.namespaces.nexusNs.enabled }}
 apiVersion: v1
 kind: Namespace
@@ -20,4 +21,5 @@ metadata:
   name: {{ .Values.namespaces.externaldnsNs | quote }}
 {{- end }}
 ---
+{{- end }}
 {{- end }}
